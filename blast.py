@@ -1,6 +1,8 @@
 from Bio.Align import substitution_matrices
 from Bio.Data.IUPACData import protein_letters
+from Bio import SeqIO
 import itertools
+import aho_corasick
 
 
 def blosum_62():
@@ -45,9 +47,48 @@ def generate_possible_alphabets(alphabet, k):
 
 # ========================================================================== #
 
+
+# ================== 2nd step: Search for seeds ============================ #
+def search_potential_seeds(fasta_file, all_neighbourhood):
+    all_potential_seeds = {}
+    total_count = 0
+    aho_trie = aho_corasick.Trie(all_neighbourhood)
+
+    for record in SeqIO.parse(fasta_file, "fasta"):
+        dictionary = {}
+
+        # print(f"Protein ID: {record.id}")
+        # print(f"Protein Sequence: {record.seq}\n")
+        aho_corasick.aho_corasick(record.seq, aho_trie, dictionary)
+
+        # inserting to 'hitPos' dict
+        if dictionary:  # dont store if seed is not found in the sequence
+            all_potential_seeds[record.id] = dictionary
+
+        for item in dictionary:
+            total_count += len(dictionary[item])
+
+    return all_potential_seeds, total_count
+
+
+# ========================================================================== #
+
+
+def initialize_output_dictionary(sequence_list_patterns):
+    """
+    Init output directory with empty list
+    Purpose: store 'count' and 'location' of the patterns
+    """
+    dictionary = {}
+    for pattern in sequence_list_patterns:
+        if pattern not in dictionary:
+            dictionary[pattern] = []
+    return dictionary
+
+
 if __name__ == "__main__":
     # temp inputs, default
-    file_name = ""
+    file_name = "proteins.fasta"
     query = "AVEKQLAEP"
     kmer_size = 3
     neighbourhood_threshold_T = 14
@@ -56,7 +97,20 @@ if __name__ == "__main__":
 
     possible_alphabets = generate_possible_alphabets(protein_letters, kmer_size)
 
-    all_kmers = generate_kmers(query, kmer_size)
-    print(
-        generate_neighbourhood(all_kmers, possible_alphabets, neighbourhood_threshold_T)
+    # all_kmers = generate_kmers(query, kmer_size)
+
+    # all_neighbourhood = generate_neighbourhood(
+    #     all_kmers, possible_alphabets, neighbourhood_threshold_T
+    # )
+
+    all_neighbourhood = ["VEK", "EKQ", "KQL", "AEP"]
+
+    print(f"all_neighbourhood: {all_neighbourhood}")
+
+    all_potential_seeds, total_count = search_potential_seeds(
+        file_name, all_neighbourhood
     )
+
+    # print(f"all_potential_seeds: {all_potential_seeds}")
+
+    print(f"total_count potential seeds: {total_count}")

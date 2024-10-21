@@ -81,7 +81,10 @@ def aho_corasick(sequence_text, trie: Trie, dictionary):
 
         if curr_node.output:
             for pattern in curr_node.output:
-                dictionary[pattern].append(index)
+                if pattern in dictionary:
+                    dictionary[pattern].append(index)
+                else:
+                    dictionary[pattern] = [index]
 
             # print(f"curr_node.output: {curr_node.output} pos: {index}")
 
