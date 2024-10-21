@@ -1,1 +1,4 @@
-./proteins.fasta
+proteins.fasta
+
+__pycache__/
+*.pyc
