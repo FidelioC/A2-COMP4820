@@ -75,26 +75,53 @@ def search_potential_seeds(fasta_file, aho_trie):
 
 
 # ================== 3rd step: Extending Seeds ============================= #
-def extend_seeds(fasta_file, all_potential_seeds, extension_threshold_eT, aho_trie):
+def extend_seeds(
+    extension_threshold_eT,
+    query_sequence,
+    protein_sequence,
+    query_start_index,
+    db_start_index,
+):
     """Extend seeds:
     - Extend left or right for each seed, calculate the total score
     - Extend until you either reach the end of the query,
     - or the whole score of the aligned sequence and query drops below the maximum score by more than the threshold eT
     """
-    query_dictionary = {}
-    query_dictionary = aho_corasick.aho_corasick(query, aho_trie, query_dictionary)
-
-    protein_sequence = "MKQLLVRSGKVFLQDVPAPVAGPKNVLVRVQRSCVSVGTEMAGVKMSGLPLYRRALKQPHHVKRVLQLMRDQGVARVYKQVKGKLDAGLPTGYSAAGTVIAVGSEVDGIAVGDRVACAGAGVANHAEVIDVPVNLCVPVPQQVSFDAAATVTLGAIAMQGVRRAQPTLGETVVVIGLGILGQITAQLLTANGCRVIGTDVDNKRIATALENGLDHGINPNDGNLVDSIIKLTDGFGADVAIITAASASSDILAQAFQSCRKKARVVIVGDVGLNMARSDIYTKELDVLISCSYGPGRYDPVYEDEGGDYPLAYVRWTENRNMGEYLRLLAAGRVRLDNMLQEPYPIDRAEEAYGRLAGEGEKPLLVLLQYPHREEAVRSVLQIAPPKPVDGRIKIAVVGAGSFAQGMHLPNLKRLGDKFDLRSVVSRTGLSARTAAERFGFSTASTDFQAVLDDPQVDLVLIATRHDLHAEMTLAALKADKHVFVEKPTSMTEEGLDAIEAFYADNPNGPLLMTGFNRRFAPAVTAAREAIKGRLSPMIVNYRMNAGYIPSDHWVHGPHGGGRNIGEACHIYDLFNALTGSQPVEVQARSIVPASGHWRRDDNFVATVRYADGSLCTLTYTSLGSKEFPKERFDIFVDGKVLVLDDYKRLEVTGAKGGWKGLTIEKGQLEELVALAEAFKPGGEWPISLADQLSATRVSFAVEKQLAE"
-    right_sequence, score_right, query_index_right, db_index_right = extend_right(
-        query, protein_sequence, 1, 701, extension_threshold_eT
+    (
+        right_query_sequence,
+        right_record_sequence,
+        score_right,
+        query_index_right,
+        db_index_right,
+    ) = extend_right(
+        query_sequence,
+        protein_sequence,
+        query_start_index,
+        db_start_index,
+        extension_threshold_eT,
     )
-    left_sequence, score_left, query_index_left, db_index_left = extend_left(
-        query, protein_sequence, 1, 701, extension_threshold_eT
+
+    (
+        left_query_sequence,
+        left_record_sequence,
+        score_left,
+        query_index_left,
+        db_index_left,
+    ) = extend_left(
+        query_sequence,
+        protein_sequence,
+        query_start_index,
+        db_start_index,
+        extension_threshold_eT,
     )
 
+    record_sequence = left_record_sequence + right_record_sequence
+    query_sequence = left_query_sequence + right_query_sequence
+    total_score = score_right + score_left
     return (
-        left_sequence + right_sequence,
-        score_right + score_left,
+        record_sequence,
+        query_sequence,
+        total_score,
         (query_index_left, query_index_right),
         (db_index_left, db_index_right),
     )
@@ -109,7 +136,8 @@ def extend_right(
 ):
     """extend right"""
     blosum_result = 0
-    curr_sequence = ""
+    curr_query_sequence = ""
+    curr_record_sequence = ""
     max = blosum_result
     prev_max = 0
 
@@ -117,9 +145,10 @@ def extend_right(
     db_index = db_start_index
 
     while (prev_max - extension_threshold_eT <= max) and (
-        query_index < len(query) and db_index < len(protein_sequence)
+        query_index < len(query_sequence) and db_index < len(protein_sequence)
     ):
-        curr_sequence += query_sequence[query_index]
+        curr_query_sequence += query_sequence[query_index]
+        curr_record_sequence += protein_sequence[db_index]
         # print(
         #     f"curr_sequence {curr_sequence}, query_index: {query_index}, db_index: {db_index}, query_char: {query_sequence[query_index]}, protein_char: {protein_sequence[db_index]}"
         # )
@@ -136,7 +165,7 @@ def extend_right(
         query_index += 1
         db_index += 1
 
-    return curr_sequence, max, query_index - 1, db_index - 1
+    return curr_query_sequence, curr_record_sequence, max, query_index - 1, db_index - 1
 
 
 def extend_left(
@@ -148,7 +177,8 @@ def extend_left(
 ):
     """extend_left"""
     blosum_result = 0
-    curr_sequence = ""
+    curr_query_sequence = ""
+    curr_record_sequence = ""
     max = blosum_result
     prev_max = 0
 
@@ -158,7 +188,8 @@ def extend_left(
     while (prev_max - extension_threshold_eT <= max) and (
         query_index >= 0 and db_index >= 0
     ):
-        curr_sequence += query_sequence[query_index]
+        curr_query_sequence = query_sequence[query_index] + curr_query_sequence
+        curr_record_sequence = protein_sequence[db_index] + curr_record_sequence
         # print(
         #     f"curr_sequence {curr_sequence}, query_index: {query_index}, db_index: {db_index}, query_char: {query_sequence[query_index]}, protein_char: {protein_sequence[db_index]}"
         # )
@@ -175,7 +206,7 @@ def extend_left(
         query_index -= 1
         db_index -= 1
 
-    return curr_sequence, max, query_index + 1, db_index + 1
+    return curr_query_sequence, curr_record_sequence, max, query_index + 1, db_index + 1
 
 
 # ========================================================================== #
@@ -191,14 +222,14 @@ def initialize_output_dictionary(sequence_list_patterns):
     return dictionary
 
 
-if __name__ == "__main__":
+def main():
     # temp inputs, default
     file_name = "proteins.fasta"
     query = "AVEKQLAEP"
     kmer_size = 3
     neighbourhood_threshold_T = 14
     extension_threshold_eT = 5
-    hsp_threshold = ""
+    hsp_threshold = 36
 
     # possible_alphabets = generate_possible_alphabets(protein_letters, kmer_size)
 
@@ -225,4 +256,21 @@ if __name__ == "__main__":
     query_dictionary = aho_corasick.aho_corasick(query, aho_trie, query_dictionary)
     print(query_dictionary)
 
-    print(extend_seeds(file_name, "", extension_threshold_eT, aho_trie))
+    # parameters for extend seeds
+    protein_sequence = "MQYFLCLADEKNVTRAARRLNIVQPALSMQIAKLEVELGQRLFDRSVQGMTLTSAGEALVRLTAPIVRDAEYARQEMAQIGGRISGRVAVGLITSVAQSTMASSSATVARRYPEIILSACEGYTETLVDWVNSGQLDFALINVPRRRTPLAAHHIMDEEMVFACRKDGPIRPAAKLRFDHIANFDLVLPSKRHGLRLILDEHAAALGIDLRPRLELDTLPALCDVIATTDFATVLPTIALRQSLASGTTRAHRFDAQRIVRSIAWVHHPRRAVSVAAKAVLDVISHDLAQAAAVAKQLAEPGSGGAASSSRKQRRKTGKTIS"
+    query_start_index = 3
+    db_start_index = 295
+
+    print(
+        extend_seeds(
+            extension_threshold_eT,
+            query,
+            protein_sequence,
+            query_start_index,
+            db_start_index,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()
