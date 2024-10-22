@@ -67,6 +67,7 @@ def aho_corasick(sequence_text, trie: Trie, dictionary):
     """set pattern matching using aho corasick"""
     curr_node = trie.root  # start from the root
     index = 0
+    start_pattern_index = 0
     for char in sequence_text:
         # if node doesn't exist in the children nodes, traverse the fail arcs
         while char not in curr_node.goto and curr_node != trie.root:
@@ -81,10 +82,11 @@ def aho_corasick(sequence_text, trie: Trie, dictionary):
 
         if curr_node.output:
             for pattern in curr_node.output:
+                start_pattern_index = index - len(pattern) + 1
                 if pattern in dictionary:
-                    dictionary[pattern].append(index)
+                    dictionary[pattern].append(start_pattern_index)
                 else:
-                    dictionary[pattern] = [index]
+                    dictionary[pattern] = [start_pattern_index]
 
             # print(f"curr_node.output: {curr_node.output} pos: {index}")
 

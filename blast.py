@@ -97,13 +97,13 @@ if __name__ == "__main__":
 
     possible_alphabets = generate_possible_alphabets(protein_letters, kmer_size)
 
-    # all_kmers = generate_kmers(query, kmer_size)
+    all_kmers = generate_kmers(query, kmer_size)
 
-    # all_neighbourhood = generate_neighbourhood(
-    #     all_kmers, possible_alphabets, neighbourhood_threshold_T
-    # )
+    all_neighbourhood = generate_neighbourhood(
+        all_kmers, possible_alphabets, neighbourhood_threshold_T
+    )
 
-    all_neighbourhood = ["VEK", "EKQ", "KQL", "AEP"]
+    # all_neighbourhood = ["VEK", "EKQ", "KQL", "AEP"]
 
     print(f"all_neighbourhood: {all_neighbourhood}")
 
