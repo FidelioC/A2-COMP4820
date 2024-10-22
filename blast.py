@@ -11,7 +11,7 @@ def blosum_62():
 
 # ================== 1st step: Generate Neighbourhood ===================== #
 def generate_neighbourhood(
-    all_kmers: list, possible_alphabets: list, neighbourhood_threshold_T
+    all_kmers: list, possible_alphabets: list, neighbourhood_threshold_T, kmer_size
 ):
     """generate neighbourhood"""
     all_neighbourhood = []
@@ -287,7 +287,7 @@ def main():
     # all_kmers = generate_kmers(query, kmer_size)
 
     # all_neighbourhood = generate_neighbourhood(
-    #     all_kmers, possible_alphabets, neighbourhood_threshold_T
+    #     all_kmers, possible_alphabets, neighbourhood_threshold_T, kmer_size
     # )
 
     all_neighbourhood = ["VEK", "EKQ", "KQL", "AEP"]
