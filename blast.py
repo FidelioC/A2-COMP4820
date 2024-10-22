@@ -210,6 +210,57 @@ def extend_left(
 
 
 # ========================================================================== #
+
+
+# ================== 4th step: Calculate HSPs ============================== #
+def calculate_HSPs(
+    fasta_file,
+    all_potential_seeds,
+    aho_trie,
+    query,
+    extension_threshold_eT,
+    hsp_threshold,
+):
+    query_dictionary = {}
+    query_dictionary = aho_corasick.aho_corasick(query, aho_trie, query_dictionary)
+    print(query_dictionary)
+
+    # iterate over every potential seeds to find HSP
+    for record in SeqIO.parse(fasta_file, "fasta"):
+        if record.id in all_potential_seeds:
+            # print(record.id)
+            for seed in all_potential_seeds[record.id]:
+                # print(seed)
+                for db_index in all_potential_seeds[record.id][seed]:
+                    # print(db_index)
+                    (
+                        record_sequence,
+                        query_sequence,
+                        total_score,
+                        query_indices,
+                        db_indicies,
+                    ) = extend_seeds(
+                        extension_threshold_eT,
+                        query,
+                        record.seq,
+                        query_dictionary[seed][0],
+                        db_index,
+                    )
+
+                if total_score >= hsp_threshold:
+                    print(record.description)
+                    print(
+                        record_sequence,
+                        query_sequence,
+                        total_score,
+                        query_indices,
+                        db_indicies,
+                    )
+
+
+# ========================================================================== #
+
+
 def initialize_output_dictionary(sequence_list_patterns):
     """
     Init output directory with empty list
@@ -245,30 +296,34 @@ def main():
 
     aho_trie = aho_corasick.Trie(all_neighbourhood)
 
-    # all_potential_seeds, total_count = search_potential_seeds(
-    #     file_name, aho_trie
-    # )
+    all_potential_seeds, total_count = search_potential_seeds(file_name, aho_trie)
 
     # print(f"all_potential_seeds: {all_potential_seeds}")
 
     # print(f"total_count potential seeds: {total_count}")
-    query_dictionary = {}
-    query_dictionary = aho_corasick.aho_corasick(query, aho_trie, query_dictionary)
-    print(query_dictionary)
 
     # parameters for extend seeds
-    protein_sequence = "MQYFLCLADEKNVTRAARRLNIVQPALSMQIAKLEVELGQRLFDRSVQGMTLTSAGEALVRLTAPIVRDAEYARQEMAQIGGRISGRVAVGLITSVAQSTMASSSATVARRYPEIILSACEGYTETLVDWVNSGQLDFALINVPRRRTPLAAHHIMDEEMVFACRKDGPIRPAAKLRFDHIANFDLVLPSKRHGLRLILDEHAAALGIDLRPRLELDTLPALCDVIATTDFATVLPTIALRQSLASGTTRAHRFDAQRIVRSIAWVHHPRRAVSVAAKAVLDVISHDLAQAAAVAKQLAEPGSGGAASSSRKQRRKTGKTIS"
-    query_start_index = 3
-    db_start_index = 295
+    # protein_sequence = "MQYFLCLADEKNVTRAARRLNIVQPALSMQIAKLEVELGQRLFDRSVQGMTLTSAGEALVRLTAPIVRDAEYARQEMAQIGGRISGRVAVGLITSVAQSTMASSSATVARRYPEIILSACEGYTETLVDWVNSGQLDFALINVPRRRTPLAAHHIMDEEMVFACRKDGPIRPAAKLRFDHIANFDLVLPSKRHGLRLILDEHAAALGIDLRPRLELDTLPALCDVIATTDFATVLPTIALRQSLASGTTRAHRFDAQRIVRSIAWVHHPRRAVSVAAKAVLDVISHDLAQAAAVAKQLAEPGSGGAASSSRKQRRKTGKTIS"
+    # query_start_index = 3
+    # db_start_index = 295
 
-    print(
-        extend_seeds(
-            extension_threshold_eT,
-            query,
-            protein_sequence,
-            query_start_index,
-            db_start_index,
-        )
+    # print(
+    #     extend_seeds(
+    #         extension_threshold_eT,
+    #         query,
+    #         protein_sequence,
+    #         query_start_index,
+    #         db_start_index,
+    #     )
+    # )
+
+    calculate_HSPs(
+        file_name,
+        all_potential_seeds,
+        aho_trie,
+        query,
+        extension_threshold_eT,
+        hsp_threshold,
     )
 
 
