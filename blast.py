@@ -14,15 +14,26 @@ def generate_neighbourhood(
     blosum,
 ):
     """generate neighbourhood"""
-    all_neighbourhood = []
+    all_neighbourhood = {}
+    query_index = 0
     for kmer in all_kmers:
+        # print(f"kmer: {kmer}")
         for alphabet in possible_alphabets:
+
             current_score = 0
             for i in range(kmer_size):
                 current_score += blosum[kmer[i]][alphabet[i]]
 
             if current_score >= neighbourhood_threshold_T:
-                all_neighbourhood.append(alphabet)
+                # print(
+                #     f"kmer: {kmer} alphabets: {alphabet}, current_score: {current_score}"
+                # )
+                if query_index not in all_neighbourhood:
+                    all_neighbourhood[query_index] = [alphabet]
+                else:
+                    all_neighbourhood[query_index].append(alphabet)
+
+        query_index += 1
 
     return all_neighbourhood
 
@@ -217,16 +228,12 @@ def extend_left(
 def calculate_HSPs(
     fasta_file,
     all_potential_seeds,
-    aho_trie,
+    all_neighbourhood,
     query,
     extension_threshold_eT,
     hsp_threshold,
     blosum,
 ):
-    query_dictionary = {}
-    query_dictionary = aho_corasick.aho_corasick(query, aho_trie, query_dictionary)
-    print(query_dictionary)
-
     # iterate over every potential seeds to find HSP
     for record in SeqIO.parse(fasta_file, "fasta"):
         record_id = record.id
@@ -248,7 +255,7 @@ def calculate_HSPs(
                         extension_threshold_eT,
                         query,
                         record_seq,
-                        query_dictionary[seed][0],
+                        find_key_dict_by_value(all_neighbourhood, seed),
                         db_index,
                         blosum,
                     )
@@ -263,6 +270,13 @@ def calculate_HSPs(
                             db_indicies,
                         )
                     total_score = 0
+
+
+def find_key_dict_by_value(dictionary, target_val):
+    for key, value_list in dictionary.items():
+        if target_val in value_list:
+            return key
+    return None
 
 
 # ========================================================================== #
@@ -284,7 +298,7 @@ def main():
     # temp inputs, default
     file_name = "proteins.fasta"
     query = "AVEKQLAEP"
-    kmer_size = 3
+    kmer_size = 5
     neighbourhood_threshold_T = 14
     extension_threshold_eT = 5
     hsp_threshold = 36
@@ -293,6 +307,7 @@ def main():
 
     possible_alphabets = generate_possible_alphabets(protein_letters, kmer_size)
     # print(f"possible_alphabets: {possible_alphabets}")
+    # print(f"protein_letters: {protein_letters}")
 
     all_kmers = generate_kmers(query, kmer_size)
     # print(f"all_kmers: {all_kmers}")
@@ -302,10 +317,12 @@ def main():
     )
 
     # all_neighbourhood = ["VEK", "EKQ", "KQL", "AEP"]
+    # Combine all values into a single list
+    all_neighbourhood_list = sum(all_neighbourhood.values(), [])
 
     print(f"all_neighbourhood: {all_neighbourhood}")
 
-    aho_trie = aho_corasick.Trie(all_neighbourhood)
+    aho_trie = aho_corasick.Trie(all_neighbourhood_list)
 
     all_potential_seeds, total_count = search_potential_seeds(file_name, aho_trie)
 
@@ -331,7 +348,7 @@ def main():
     calculate_HSPs(
         file_name,
         all_potential_seeds,
-        aho_trie,
+        all_neighbourhood,
         query,
         extension_threshold_eT,
         hsp_threshold,
