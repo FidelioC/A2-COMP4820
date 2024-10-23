@@ -5,15 +5,14 @@ import itertools
 import aho_corasick
 
 
-def blosum_62():
-    return substitution_matrices.load("BLOSUM62")
-
-
 # ================== 1st step: Generate Neighbourhood ===================== #
 def generate_neighbourhood(
-    all_kmers: list, possible_alphabets: list, neighbourhood_threshold_T, kmer_size
+    all_kmers: list,
+    possible_alphabets: list,
+    neighbourhood_threshold_T,
+    kmer_size,
+    blosum,
 ):
-    blosum = blosum_62()
     """generate neighbourhood"""
     all_neighbourhood = []
     for kmer in all_kmers:
@@ -82,6 +81,7 @@ def extend_seeds(
     protein_sequence,
     query_start_index,
     db_start_index,
+    blosum,
 ):
     """Extend seeds:
     - Extend left or right for each seed, calculate the total score
@@ -100,6 +100,7 @@ def extend_seeds(
         query_start_index,
         db_start_index,
         extension_threshold_eT,
+        blosum,
     )
 
     (
@@ -114,6 +115,7 @@ def extend_seeds(
         query_start_index,
         db_start_index,
         extension_threshold_eT,
+        blosum,
     )
 
     record_sequence = left_record_sequence + right_record_sequence
@@ -134,6 +136,7 @@ def extend_right(
     query_start_index,
     db_start_index,
     extension_threshold_eT,
+    blosum,
 ):
     """extend right"""
     blosum_result = 0
@@ -154,9 +157,7 @@ def extend_right(
         #     f"curr_sequence {curr_sequence}, query_index: {query_index}, db_index: {db_index}, query_char: {query_sequence[query_index]}, protein_char: {protein_sequence[db_index]}"
         # )
 
-        blosum_result = blosum_62()[query_sequence[query_index]][
-            protein_sequence[db_index]
-        ]
+        blosum_result = blosum[query_sequence[query_index]][protein_sequence[db_index]]
         # print(f"max: {max}")
         # print(f"blosum_result: {blosum_result}")
 
@@ -175,6 +176,7 @@ def extend_left(
     query_start_index,
     db_start_index,
     extension_threshold_eT,
+    blosum,
 ):
     """extend_left"""
     blosum_result = 0
@@ -195,9 +197,7 @@ def extend_left(
         #     f"curr_sequence {curr_sequence}, query_index: {query_index}, db_index: {db_index}, query_char: {query_sequence[query_index]}, protein_char: {protein_sequence[db_index]}"
         # )
 
-        blosum_result = blosum_62()[query_sequence[query_index]][
-            protein_sequence[db_index]
-        ]
+        blosum_result = blosum[query_sequence[query_index]][protein_sequence[db_index]]
         # print(f"max: {max}")
         # print(f"blosum_result: {blosum_result}")
 
@@ -221,6 +221,7 @@ def calculate_HSPs(
     query,
     extension_threshold_eT,
     hsp_threshold,
+    blosum,
 ):
     query_dictionary = {}
     query_dictionary = aho_corasick.aho_corasick(query, aho_trie, query_dictionary)
@@ -228,11 +229,14 @@ def calculate_HSPs(
 
     # iterate over every potential seeds to find HSP
     for record in SeqIO.parse(fasta_file, "fasta"):
-        if record.id in all_potential_seeds:
+        record_id = record.id
+        if record_id in all_potential_seeds:
+            seeds_dict = all_potential_seeds[record_id]
             # print(record.id)
-            for seed in all_potential_seeds[record.id]:
+            for seed, db_indexes in seeds_dict.items():
+                record_seq = record.seq
                 # print(seed)
-                for db_index in all_potential_seeds[record.id][seed]:
+                for db_index in db_indexes:
                     # print(db_index)
                     (
                         record_sequence,
@@ -243,9 +247,10 @@ def calculate_HSPs(
                     ) = extend_seeds(
                         extension_threshold_eT,
                         query,
-                        record.seq,
+                        record_seq,
                         query_dictionary[seed][0],
                         db_index,
+                        blosum,
                     )
 
                     if total_score >= hsp_threshold:
@@ -284,14 +289,16 @@ def main():
     extension_threshold_eT = 5
     hsp_threshold = 36
 
+    blosum = substitution_matrices.load("BLOSUM62")
+
     possible_alphabets = generate_possible_alphabets(protein_letters, kmer_size)
-    print(f"possible_alphabets: {possible_alphabets}")
+    # print(f"possible_alphabets: {possible_alphabets}")
 
     all_kmers = generate_kmers(query, kmer_size)
-    print(f"all_kmers: {all_kmers}")
+    # print(f"all_kmers: {all_kmers}")
 
     all_neighbourhood = generate_neighbourhood(
-        all_kmers, possible_alphabets, neighbourhood_threshold_T, kmer_size
+        all_kmers, possible_alphabets, neighbourhood_threshold_T, kmer_size, blosum
     )
 
     # all_neighbourhood = ["VEK", "EKQ", "KQL", "AEP"]
@@ -300,11 +307,11 @@ def main():
 
     aho_trie = aho_corasick.Trie(all_neighbourhood)
 
-    # all_potential_seeds, total_count = search_potential_seeds(file_name, aho_trie)
+    all_potential_seeds, total_count = search_potential_seeds(file_name, aho_trie)
 
     # print(f"all_potential_seeds: {all_potential_seeds}")
 
-    # print(f"total_count potential seeds: {total_count}")
+    print(f"total_count potential seeds: {total_count}")
 
     # parameters for extend seeds
     # protein_sequence = "MQYFLCLADEKNVTRAARRLNIVQPALSMQIAKLEVELGQRLFDRSVQGMTLTSAGEALVRLTAPIVRDAEYARQEMAQIGGRISGRVAVGLITSVAQSTMASSSATVARRYPEIILSACEGYTETLVDWVNSGQLDFALINVPRRRTPLAAHHIMDEEMVFACRKDGPIRPAAKLRFDHIANFDLVLPSKRHGLRLILDEHAAALGIDLRPRLELDTLPALCDVIATTDFATVLPTIALRQSLASGTTRAHRFDAQRIVRSIAWVHHPRRAVSVAAKAVLDVISHDLAQAAAVAKQLAEPGSGGAASSSRKQRRKTGKTIS"
@@ -321,14 +328,15 @@ def main():
     #     )
     # )
 
-    # calculate_HSPs(
-    #     file_name,
-    #     all_potential_seeds,
-    #     aho_trie,
-    #     query,
-    #     extension_threshold_eT,
-    #     hsp_threshold,
-    # )
+    calculate_HSPs(
+        file_name,
+        all_potential_seeds,
+        aho_trie,
+        query,
+        extension_threshold_eT,
+        hsp_threshold,
+        blosum,
+    )
 
 
 if __name__ == "__main__":
