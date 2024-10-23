@@ -13,13 +13,14 @@ def blosum_62():
 def generate_neighbourhood(
     all_kmers: list, possible_alphabets: list, neighbourhood_threshold_T, kmer_size
 ):
+    blosum = blosum_62()
     """generate neighbourhood"""
     all_neighbourhood = []
     for kmer in all_kmers:
         for alphabet in possible_alphabets:
             current_score = 0
             for i in range(kmer_size):
-                current_score += blosum_62()[kmer[i]][alphabet[i]]
+                current_score += blosum[kmer[i]][alphabet[i]]
 
             if current_score >= neighbourhood_threshold_T:
                 all_neighbourhood.append(alphabet)
@@ -247,15 +248,16 @@ def calculate_HSPs(
                         db_index,
                     )
 
-                if total_score >= hsp_threshold:
-                    print(record.description)
-                    print(
-                        record_sequence,
-                        query_sequence,
-                        total_score,
-                        query_indices,
-                        db_indicies,
-                    )
+                    if total_score >= hsp_threshold:
+                        print(record.description)
+                        print(
+                            record_sequence,
+                            query_sequence,
+                            total_score,
+                            query_indices,
+                            db_indicies,
+                        )
+                    total_score = 0
 
 
 # ========================================================================== #
@@ -282,21 +284,23 @@ def main():
     extension_threshold_eT = 5
     hsp_threshold = 36
 
-    # possible_alphabets = generate_possible_alphabets(protein_letters, kmer_size)
+    possible_alphabets = generate_possible_alphabets(protein_letters, kmer_size)
+    print(f"possible_alphabets: {possible_alphabets}")
 
-    # all_kmers = generate_kmers(query, kmer_size)
+    all_kmers = generate_kmers(query, kmer_size)
+    print(f"all_kmers: {all_kmers}")
 
-    # all_neighbourhood = generate_neighbourhood(
-    #     all_kmers, possible_alphabets, neighbourhood_threshold_T, kmer_size
-    # )
+    all_neighbourhood = generate_neighbourhood(
+        all_kmers, possible_alphabets, neighbourhood_threshold_T, kmer_size
+    )
 
-    all_neighbourhood = ["VEK", "EKQ", "KQL", "AEP"]
+    # all_neighbourhood = ["VEK", "EKQ", "KQL", "AEP"]
 
-    # print(f"all_neighbourhood: {all_neighbourhood}")
+    print(f"all_neighbourhood: {all_neighbourhood}")
 
     aho_trie = aho_corasick.Trie(all_neighbourhood)
 
-    all_potential_seeds, total_count = search_potential_seeds(file_name, aho_trie)
+    # all_potential_seeds, total_count = search_potential_seeds(file_name, aho_trie)
 
     # print(f"all_potential_seeds: {all_potential_seeds}")
 
@@ -317,14 +321,14 @@ def main():
     #     )
     # )
 
-    calculate_HSPs(
-        file_name,
-        all_potential_seeds,
-        aho_trie,
-        query,
-        extension_threshold_eT,
-        hsp_threshold,
-    )
+    # calculate_HSPs(
+    #     file_name,
+    #     all_potential_seeds,
+    #     aho_trie,
+    #     query,
+    #     extension_threshold_eT,
+    #     hsp_threshold,
+    # )
 
 
 if __name__ == "__main__":
