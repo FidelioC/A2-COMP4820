@@ -3,6 +3,7 @@ from Bio.Data.IUPACData import protein_letters
 from Bio import SeqIO
 import itertools
 import aho_corasick
+import click
 
 
 # ================== 1st step: Generate Neighbourhood ===================== #
@@ -136,8 +137,8 @@ def extend_seeds(
         record_sequence,
         query_sequence,
         total_score,
-        (query_index_left, query_index_right),
-        (db_index_left, db_index_right),
+        [query_index_left, query_index_right],
+        [db_index_left, db_index_right],
     )
 
 
@@ -234,6 +235,7 @@ def calculate_HSPs(
     hsp_threshold,
     blosum,
 ):
+    output_dict = {}
     # iterate over every potential seeds to find HSP
     for record in SeqIO.parse(fasta_file, "fasta"):
         record_id = record.id
@@ -250,7 +252,7 @@ def calculate_HSPs(
                         query_sequence,
                         total_score,
                         query_indices,
-                        db_indicies,
+                        db_indices,
                     ) = extend_seeds(
                         extension_threshold_eT,
                         query,
@@ -261,15 +263,17 @@ def calculate_HSPs(
                     )
 
                     if total_score >= hsp_threshold:
-                        print(record.description)
-                        print(
-                            record_sequence,
-                            query_sequence,
-                            total_score,
-                            query_indices,
-                            db_indicies,
-                        )
+                        record_desc = record.description
+                        output_result = {
+                            "Score": total_score,
+                            "Record sequence": record_sequence + str(db_indices),
+                            "Query sequence": query_sequence + str(query_indices),
+                        }
+                        if record_desc not in output_dict:
+                            output_dict[record_desc] = output_result
                     total_score = 0
+
+    return output_dict
 
 
 def find_key_dict_by_value(dictionary, target_val):
@@ -280,72 +284,75 @@ def find_key_dict_by_value(dictionary, target_val):
 
 
 # ========================================================================== #
+def print_output(all_kmers, all_neighbourhood_list, output_dict, total_count):
+    print("Output\n======")
+    print("\nNeighbourhood\n-------------")
+    print(f"k-mers: {all_kmers}")
+    print(f"neighbourhood: {all_neighbourhood_list}")
+    print("\nHSPs\n----")
+    index = 1
+    for key, value in output_dict.items():
+        print(f"{index}. {key}.")
+        for item_key, item_value in value.items():
+            print(f"   * {item_key}: {item_value}")
+        index += 1
+    print("\nSummary\n-------")
+    print(f"* {total_count} seeds were considered exceeding T")
+    print(f"* {len(output_dict)} hits were found >= S")
 
 
-def initialize_output_dictionary(sequence_list_patterns):
-    """
-    Init output directory with empty list
-    Purpose: store 'count' and 'location' of the patterns
-    """
-    dictionary = {}
-    for pattern in sequence_list_patterns:
-        if pattern not in dictionary:
-            dictionary[pattern] = []
-    return dictionary
+@click.command()
+@click.option("--database", required=True)
+@click.option("--query", required=True)
+@click.option("--kmer-size", default=3)
+@click.option("--neighbourhood-threshold", default=14)
+@click.option("--extension-threshold", default=5)
+@click.option("--hsp-threshold", default=36)
+def commands_processing(
+    database,
+    query,
+    kmer_size,
+    neighbourhood_threshold,
+    extension_threshold,
+    hsp_threshold,
+):
+    main(
+        database,
+        query,
+        kmer_size,
+        neighbourhood_threshold,
+        extension_threshold,
+        hsp_threshold,
+    )
 
 
-def main():
-    # temp inputs, default
-    file_name = "proteins.fasta"
-    query = "AVEKQLAEP"
-    kmer_size = 5
-    neighbourhood_threshold_T = 14
-    extension_threshold_eT = 5
-    hsp_threshold = 36
-
+def main(
+    file_name,
+    query,
+    kmer_size,
+    neighbourhood_threshold_T,
+    extension_threshold_eT,
+    hsp_threshold,
+):
+    # init
     blosum = substitution_matrices.load("BLOSUM62")
 
+    # step 1: generate alphabets, kmers, neighbourhood
     possible_alphabets = generate_possible_alphabets(protein_letters, kmer_size)
-    # print(f"possible_alphabets: {possible_alphabets}")
-    # print(f"protein_letters: {protein_letters}")
-
     all_kmers = generate_kmers(query, kmer_size)
-    # print(f"all_kmers: {all_kmers}")
-
     all_neighbourhood = generate_neighbourhood(
         all_kmers, possible_alphabets, neighbourhood_threshold_T, kmer_size, blosum
     )
 
-    # all_neighbourhood = ["VEK", "EKQ", "KQL", "AEP"]
-    # Combine all values into a single list
+    # Combine all values into a single list to create trie
     all_neighbourhood_list = sum(all_neighbourhood.values(), [])
-
-    print(f"all_neighbourhood: {all_neighbourhood}")
-
     aho_trie = aho_corasick.Trie(all_neighbourhood_list)
 
+    # step 2: search all potential seeds
     all_potential_seeds, total_count = search_potential_seeds(file_name, aho_trie)
 
-    # print(f"all_potential_seeds: {all_potential_seeds}")
-
-    print(f"total_count potential seeds: {total_count}")
-
-    # parameters for extend seeds
-    # protein_sequence = "MQYFLCLADEKNVTRAARRLNIVQPALSMQIAKLEVELGQRLFDRSVQGMTLTSAGEALVRLTAPIVRDAEYARQEMAQIGGRISGRVAVGLITSVAQSTMASSSATVARRYPEIILSACEGYTETLVDWVNSGQLDFALINVPRRRTPLAAHHIMDEEMVFACRKDGPIRPAAKLRFDHIANFDLVLPSKRHGLRLILDEHAAALGIDLRPRLELDTLPALCDVIATTDFATVLPTIALRQSLASGTTRAHRFDAQRIVRSIAWVHHPRRAVSVAAKAVLDVISHDLAQAAAVAKQLAEPGSGGAASSSRKQRRKTGKTIS"
-    # query_start_index = 3
-    # db_start_index = 295
-
-    # print(
-    #     extend_seeds(
-    #         extension_threshold_eT,
-    #         query,
-    #         protein_sequence,
-    #         query_start_index,
-    #         db_start_index,
-    #     )
-    # )
-
-    calculate_HSPs(
+    # step 3: extend seeds and calculate HSP
+    output_dict = calculate_HSPs(
         file_name,
         all_potential_seeds,
         all_neighbourhood,
@@ -355,6 +362,8 @@ def main():
         blosum,
     )
 
+    print_output(all_kmers, all_neighbourhood_list, output_dict, total_count)
+
 
 if __name__ == "__main__":
-    main()
+    commands_processing()
